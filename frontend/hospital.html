@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Hospital | Fraud-Free Health Insurance</title>
+  <script src="https://cdn.jsdelivr.net/npm/web3@1.10.0/dist/web3.min.js"></script>
+
+  <style>
+    body{margin:0;font-family:Segoe UI;background:#f4f7fb;}
+    header{background:#0b5ed7;color:white;padding:20px 40px;}
+    .container{padding:40px;display:flex;justify-content:center;}
+    .card{
+      background:white;width:520px;padding:30px;
+      border-radius:10px;
+      box-shadow:0 8px 20px rgba(0,0,0,.1);
+    }
+    input,button{
+      width:100%;padding:12px;margin-top:12px;
+      border-radius:6px;border:1px solid #ccc;
+    }
+    button{background:#0b5ed7;color:white;border:none;font-size:15px;}
+    .hash{
+      font-size:13px;
+      word-break:break-all;
+      background:#eef2f7;
+      padding:10px;
+      border-radius:5px;
+    }
+  </style>
+</head>
+
+<body>
+
+<header>
+  <h2> Hospital Dashboard</h2>
+  <small>Fraud-Free Health Insurance System</small>
+</header>
+
+<div class="container">
+  <div class="card">
+
+    <button onclick="connect()">Connect Wallet</button>
+    <p id="acc"></p>
+
+    <h3>Upload Medical Report</h3>
+    <input type="file" id="file" />
+    <input type="text" id="user" placeholder="Patient ID" />
+    <button onclick="store()">Upload Report</button>
+
+
+    <p><b>Generated SHA-256 Hash</b></p>
+    <div id="hash" class="hash"></div>
+
+  </div>
+</div>
+
+<script>
+/* ---------------- CONTRACT DETAILS ---------------- */
+
+const CONTRACT_ADDRESS = "0x2a881aDdB846d1B917A40571a9BEDCC4Dd6dEB09";
+
+const ABI = [
+  {"inputs":[],"stateMutability":"nonpayable","type":"constructor"},
+
+  {"anonymous":false,"inputs":[
+    {"indexed":false,"internalType":"uint256","name":"claimId","type":"uint256"},
+    {"indexed":false,"internalType":"address","name":"user","type":"address"}
+  ],"name":"ClaimApplied","type":"event"},
+
+  {"anonymous":false,"inputs":[
+    {"indexed":false,"internalType":"uint256","name":"claimId","type":"uint256"}
+  ],"name":"ClaimApproved","type":"event"},
+
+  {"anonymous":false,"inputs":[
+    {"indexed":false,"internalType":"uint256","name":"claimId","type":"uint256"},
+    {"indexed":false,"internalType":"bool","name":"matched","type":"bool"}
+  ],"name":"ClaimAutoVerified","type":"event"},
+
+  {"anonymous":false,"inputs":[
+    {"indexed":false,"internalType":"uint256","name":"claimId","type":"uint256"}
+  ],"name":"ClaimRejected","type":"event"},
+
+  {"anonymous":false,"inputs":[
+    {"indexed":false,"internalType":"address","name":"hospital","type":"address"}
+  ],"name":"HospitalRegistered","type":"event"},
+
+  {"anonymous":false,"inputs":[
+    {"indexed":false,"internalType":"uint256","name":"reportId","type":"uint256"},
+    {"indexed":false,"internalType":"address","name":"hospital","type":"address"},
+    {"indexed":false,"internalType":"address","name":"user","type":"address"}
+  ],"name":"HospitalReportStored","type":"event"},
+
+  {"anonymous":false,"inputs":[
+    {"indexed":false,"internalType":"uint256","name":"claimId","type":"uint256"}
+  ],"name":"UserHashSubmitted","type":"event"},
+
+  {"inputs":[],"name":"claimCount","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},
+
+  {"inputs":[{"internalType":"uint256","name":"","type":"uint256"}],
+   "name":"claims","outputs":[
+     {"internalType":"uint256","name":"id","type":"uint256"},
+     {"internalType":"address","name":"user","type":"address"},
+     {"internalType":"bytes32","name":"userHash","type":"bytes32"},
+     {"internalType":"bool","name":"verified","type":"bool"},
+     {"internalType":"bool","name":"approved","type":"bool"},
+     {"internalType":"bool","name":"decided","type":"bool"}
+   ],
+   "stateMutability":"view","type":"function"},
+
+  {"inputs":[],"name":"insurer","outputs":[{"internalType":"address","name":"","type":"address"}],"stateMutability":"view","type":"function"},
+
+  {"inputs":[{"internalType":"address","name":"","type":"address"}],
+   "name":"isHospital","outputs":[{"internalType":"bool","name":"","type":"bool"}],
+   "stateMutability":"view","type":"function"},
+
+  {"inputs":[],"name":"reportCount","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},
+
+  {"inputs":[{"internalType":"uint256","name":"","type":"uint256"}],
+   "name":"reports","outputs":[
+     {"internalType":"uint256","name":"id","type":"uint256"},
+     {"internalType":"address","name":"hospital","type":"address"},
+     {"internalType":"address","name":"user","type":"address"},
+     {"internalType":"bytes32","name":"hospitalHash","type":"bytes32"}
+   ],
+   "stateMutability":"view","type":"function"},
+
+  {"inputs":[{"internalType":"address","name":"_hospital","type":"address"}],
+   "name":"registerHospital","outputs":[],"stateMutability":"nonpayable","type":"function"},
+
+  {"inputs":[
+    {"internalType":"address","name":"_user","type":"address"},
+    {"internalType":"bytes32","name":"_reportHash","type":"bytes32"}
+  ],
+   "name":"storeHospitalHash","outputs":[],"stateMutability":"nonpayable","type":"function"},
+
+  {"inputs":[{"internalType":"uint256[]","name":"_reportIds","type":"uint256[]"}],
+   "name":"applyClaim","outputs":[],"stateMutability":"nonpayable","type":"function"},
+
+  {"inputs":[
+    {"internalType":"uint256","name":"_claimId","type":"uint256"},
+    {"internalType":"bytes32","name":"_userHash","type":"bytes32"}
+  ],
+   "name":"submitUserHash","outputs":[],"stateMutability":"nonpayable","type":"function"},
+
+  {"inputs":[{"internalType":"uint256","name":"_claimId","type":"uint256"}],
+   "name":"autoVerifyClaim","outputs":[],"stateMutability":"nonpayable","type":"function"},
+
+  {"inputs":[
+    {"internalType":"uint256","name":"_claimId","type":"uint256"},
+    {"internalType":"bool","name":"_approve","type":"bool"}
+  ],
+   "name":"finalDecision","outputs":[],"stateMutability":"nonpayable","type":"function"},
+
+  {"inputs":[{"internalType":"uint256","name":"_claimId","type":"uint256"}],
+   "name":"getClaimReports","outputs":[{"internalType":"uint256[]","name":"","type":"uint256[]"}],
+   "stateMutability":"view","type":"function"}
+];
+
+/* ---------------- WEB3 LOGIC ---------------- */
+
+let web3, contract, account;
+
+async function connect(){
+  web3 = new Web3(window.ethereum);
+  await ethereum.request({ method:"eth_requestAccounts" });
+  account = (await web3.eth.getAccounts())[0];
+  document.getElementById("acc").innerText = "Connected: " + account;
+  contract = new web3.eth.Contract(ABI, CONTRACT_ADDRESS);
+}
+
+async function store() {
+  try {
+    const fileInput = document.getElementById("file");
+    const userInput = document.getElementById("user");
+
+    // 🔒 Safety checks
+    if (!fileInput || !userInput) {
+      alert("Upload form not loaded properly");
+      return;
+    }
+
+    if (fileInput.files.length === 0) {
+      alert("Please select a report");
+      return;
+    }
+
+    if (!userInput.value) {
+      alert("Enter Patient ID");
+      return;
+    }
+
+    const file = fileInput.files[0];
+    const user = userInput.value;
+
+    const buffer = await file.arrayBuffer();
+    const hashBuffer = await crypto.subtle.digest("SHA-256", buffer);
+
+    const hashHex =
+      "0x" +
+      [...new Uint8Array(hashBuffer)]
+        .map(b => b.toString(16).padStart(2, "0"))
+        .join("");
+
+    document.getElementById("hash").innerText = hashHex;
+
+    await contract.methods
+      .storeHospitalHash(user, hashHex)
+      .send({ from: account });
+
+    alert("Report hash stored on blockchain");
+
+    // 🔄 RESET for next patient (THIS FIXES YOUR ERROR)
+    fileInput.value = "";
+    userInput.value = "";
+
+  } catch (err) {
+    console.error(err);
+    alert("Transaction failed");
+  }
+}
+
+</script>
+
+</body>
+</html>

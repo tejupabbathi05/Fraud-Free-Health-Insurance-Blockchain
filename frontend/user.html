@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>User | Fraud-Free Health Insurance</title>
+<script src="https://cdn.jsdelivr.net/npm/web3@1.10.0/dist/web3.min.js"></script>
+
+<style>
+body{margin:0;font-family:Segoe UI;background:#eef2f7;}
+header{background:#198754;color:white;padding:20px 40px;}
+.container{padding:40px;display:flex;justify-content:center;}
+.card{
+  background:white;width:460px;padding:30px;
+  border-radius:10px;
+  box-shadow:0 8px 20px rgba(0,0,0,.1);
+}
+input,button{
+  width:100%;
+  padding:12px;
+  margin-top:12px;
+  border-radius:6px;
+  border:1px solid #ccc;
+}
+button{background:#198754;color:white;border:none;font-size:15px;}
+</style>
+</head>
+
+<body>
+
+<header>
+  <h2> Policy Holder Dashboard</h2>
+  <small>Apply insurance claims securely</small>
+</header>
+
+<div class="container">
+<div class="card">
+
+<button onclick="connect()">Connect Wallet</button>
+<p id="acc"></p>
+
+<h3>Apply for Insurance Claim</h3>
+<input id="rid" placeholder="Medical Report ID">
+<button onclick="applyClaim()">Submit Claim</button>
+
+</div>
+</div>
+
+<script>
+const CONTRACT_ADDRESS = "0x2a881aDdB846d1B917A40571a9BEDCC4Dd6dEB09";
+
+const ABI = [
+  {"inputs":[],"stateMutability":"nonpayable","type":"constructor"},
+
+  {"anonymous":false,"inputs":[
+    {"indexed":false,"internalType":"uint256","name":"claimId","type":"uint256"},
+    {"indexed":false,"internalType":"address","name":"user","type":"address"}
+  ],"name":"ClaimApplied","type":"event"},
+
+  {"anonymous":false,"inputs":[
+    {"indexed":false,"internalType":"uint256","name":"claimId","type":"uint256"}
+  ],"name":"ClaimApproved","type":"event"},
+
+  {"anonymous":false,"inputs":[
+    {"indexed":false,"internalType":"uint256","name":"claimId","type":"uint256"},
+    {"indexed":false,"internalType":"bool","name":"matched","type":"bool"}
+  ],"name":"ClaimAutoVerified","type":"event"},
+
+  {"anonymous":false,"inputs":[
+    {"indexed":false,"internalType":"uint256","name":"claimId","type":"uint256"}
+  ],"name":"ClaimRejected","type":"event"},
+
+  {"anonymous":false,"inputs":[
+    {"indexed":false,"internalType":"address","name":"hospital","type":"address"}
+  ],"name":"HospitalRegistered","type":"event"},
+
+  {"anonymous":false,"inputs":[
+    {"indexed":false,"internalType":"uint256","name":"reportId","type":"uint256"},
+    {"indexed":false,"internalType":"address","name":"hospital","type":"address"},
+    {"indexed":false,"internalType":"address","name":"user","type":"address"}
+  ],"name":"HospitalReportStored","type":"event"},
+
+  {"anonymous":false,"inputs":[
+    {"indexed":false,"internalType":"uint256","name":"claimId","type":"uint256"}
+  ],"name":"UserHashSubmitted","type":"event"},
+
+  {"inputs":[],"name":"claimCount","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},
+
+  {"inputs":[{"internalType":"uint256","name":"","type":"uint256"}],
+   "name":"claims","outputs":[
+     {"internalType":"uint256","name":"id","type":"uint256"},
+     {"internalType":"address","name":"user","type":"address"},
+     {"internalType":"bytes32","name":"userHash","type":"bytes32"},
+     {"internalType":"bool","name":"verified","type":"bool"},
+     {"internalType":"bool","name":"approved","type":"bool"},
+     {"internalType":"bool","name":"decided","type":"bool"}
+   ],
+   "stateMutability":"view","type":"function"},
+
+  {"inputs":[],"name":"insurer","outputs":[{"internalType":"address","name":"","type":"address"}],"stateMutability":"view","type":"function"},
+
+  {"inputs":[{"internalType":"address","name":"","type":"address"}],
+   "name":"isHospital","outputs":[{"internalType":"bool","name":"","type":"bool"}],
+   "stateMutability":"view","type":"function"},
+
+  {"inputs":[],"name":"reportCount","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},
+
+  {"inputs":[{"internalType":"uint256","name":"","type":"uint256"}],
+   "name":"reports","outputs":[
+     {"internalType":"uint256","name":"id","type":"uint256"},
+     {"internalType":"address","name":"hospital","type":"address"},
+     {"internalType":"address","name":"user","type":"address"},
+     {"internalType":"bytes32","name":"hospitalHash","type":"bytes32"}
+   ],
+   "stateMutability":"view","type":"function"},
+
+  {"inputs":[{"internalType":"address","name":"_hospital","type":"address"}],
+   "name":"registerHospital","outputs":[],"stateMutability":"nonpayable","type":"function"},
+
+  {"inputs":[
+    {"internalType":"address","name":"_user","type":"address"},
+    {"internalType":"bytes32","name":"_reportHash","type":"bytes32"}
+  ],
+   "name":"storeHospitalHash","outputs":[],"stateMutability":"nonpayable","type":"function"},
+
+  {"inputs":[{"internalType":"uint256[]","name":"_reportIds","type":"uint256[]"}],
+   "name":"applyClaim","outputs":[],"stateMutability":"nonpayable","type":"function"},
+
+  {"inputs":[
+    {"internalType":"uint256","name":"_claimId","type":"uint256"},
+    {"internalType":"bytes32","name":"_userHash","type":"bytes32"}
+  ],
+   "name":"submitUserHash","outputs":[],"stateMutability":"nonpayable","type":"function"},
+
+  {"inputs":[{"internalType":"uint256","name":"_claimId","type":"uint256"}],
+   "name":"autoVerifyClaim","outputs":[],"stateMutability":"nonpayable","type":"function"},
+
+  {"inputs":[
+    {"internalType":"uint256","name":"_claimId","type":"uint256"},
+    {"internalType":"bool","name":"_approve","type":"bool"}
+  ],
+   "name":"finalDecision","outputs":[],"stateMutability":"nonpayable","type":"function"},
+
+  {"inputs":[{"internalType":"uint256","name":"_claimId","type":"uint256"}],
+   "name":"getClaimReports","outputs":[{"internalType":"uint256[]","name":"","type":"uint256[]"}],
+   "stateMutability":"view","type":"function"}
+];
+async function connect() {
+  //alert("connect() called"); // DEBUG
+
+  if (!window.ethereum) {
+    alert("MetaMask not found");
+    return;
+  }
+
+  try {
+    web3 = new Web3(window.ethereum);
+    await window.ethereum.request({ method: "eth_requestAccounts" });
+
+    const accounts = await web3.eth.getAccounts();
+    account = accounts[0];
+
+    contract = new web3.eth.Contract(ABI, CONTRACT_ADDRESS);
+
+    document.getElementById("acc").innerText =
+      "Connected: " + account;
+
+    console.log("Connected:", account);
+  } catch (err) {
+    console.error(err);
+    alert("Connection failed");
+  }
+}
+
+async function applyClaim() {
+  try {
+    const rid = document.getElementById("rid").value;
+    if (!rid) {
+      alert("Enter report ID");
+      return;
+    }
+
+    await contract.methods
+      .applyClaim([rid])
+      .send({ from: account });
+
+    alert("Claim submitted");
+  } catch (err) {
+    console.error(err);
+    alert("Claim failed");
+  }
+}
+
+</script>
+
+</body>
+</html>
