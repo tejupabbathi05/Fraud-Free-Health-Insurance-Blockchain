@@ -14,7 +14,7 @@ By storing report hashes on the blockchain, the system ensures that medical reco
 - JavaScript
 - HTML
 - Blockchain (Ethereum)
-- 
+  
 ## Requirements
 To run this project, make sure the following tools are installed:
 - Node.js
